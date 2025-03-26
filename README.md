@@ -488,11 +488,6 @@ understanding of the factors contributing to infant mortality.
 
 # Appendix
 
-Put all supplementary materials in Appendix so that we do not lose focus
-in the main text but at the same time provide all relevant information
-for your reader/colleague/boss as well as **the future you** for
-reference!
-
 <https://data.cityofchicago.org/api/assets/2107948F-357D-4ED7-ACC2-2E9266BBFFA2>
 This is a link to further explanation and information regarding the
 Chicago Health Atlas data that we used. This first couple pages of the
