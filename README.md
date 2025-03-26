@@ -505,6 +505,6 @@ Health Atlas data from.
 
 This link will take you directly to the page we downloaded the Illinois
 Action for Children dataset from. We downloaded the Excel file under
-Cook County Childcare Data \< By C\`hicago Community Area and performed
+Cook County Childcare Data \< By C\hicago Community Area and performed
 some preliminary cleaning specifically with the headers in Excel itself
 before importing it into R.
