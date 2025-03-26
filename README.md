@@ -242,36 +242,6 @@ as well, but don’t appear to affect it in a perfectly graphed way.
 
 ![Interactive Map 7](interactive_map_7.png)
 
-![](README_GitHubReady_FINAL_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
-
-> **Note**: *This was originally an interactive map (viewable in HTML
-> only). Static image shown below.*
-
-\#install.packages(“webshot”) \#webshot::install_phantomjs()
-
-
-
-
-
-
-    > **Note**: *This was originally an interactive map (viewable in HTML only). Static image shown below.*
-
-
-> **Note**: *This was originally an interactive map (viewable in HTML
-> only). Static image shown below.*
-
-> **Note**: *This was originally an interactive map (viewable in HTML
-> only). Static image shown below.*
-
-> **Note**: *This was originally an interactive map (viewable in HTML
-> only). Static image shown below.*
-
-> **Note**: *This was originally an interactive map (viewable in HTML
-> only). Static image shown below.*
-
-> **Note**: *This was originally an interactive map (viewable in HTML
-> only). Static image shown below.*
-
 # Model Training
 
 ## Linear Regression
