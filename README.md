@@ -126,7 +126,7 @@ differences by Chicago community area. We found a minimum of 1.5 deaths
 per 1,000 live births and a maximum of 22.6 per 1,000 live births. This
 difference is definitely significant and drove our curiosity to continue
 exploring this variable.
-![](README_GitHubReady_FINAL_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+![Histogram](figure-gfm/unnamed-chunk-5-1.png)
 
 Next we decided to examine the strength of correlations between certain
 variables. The correlation between having no high school diploma and
@@ -142,7 +142,8 @@ rate is more dependent on these factors meaning that infant mortality is
 significantly higher in community areas where unemployment rate, the
 teen birth rate, and the per capita income all tend to be higher.
 
-![](README_GitHubReady_FINAL_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->![](README_GitHubReady_FINAL_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->
+![Scatterplot 1](figure-gfm/unnamed-chunk-6-1.png)
+![Scatterplot 2](figure-gfm/unnamed-chunk-6-2.png)
 
 Our next consideration was to identify the most common causes of
 mortality in each community area to identify which are the most
@@ -194,7 +195,7 @@ For example, a place with a struggling population in terms of per capita
 income probably does not have the capacity to afford proper treatment
 for diseases and also has a higher crime rate.
 
-![](README_GitHubReady_FINAL_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+![Scatterplot 3](figure-gfm/unnamed-chunk-9-1.png)
 
 ## Mapping
 
