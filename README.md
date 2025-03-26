@@ -1,6 +1,8 @@
 Chicago Child Care and Public Health Analysis
 ================
-Dana KilbourneRuthie MontellaAziz Al Mezraani
+Dana Kilbourne
+Ruthie Montella
+Aziz Al Mezraani
 Spring 2025
 
 - [Overview and Goal of Study](#overview-and-goal-of-study)
