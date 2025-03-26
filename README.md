@@ -201,6 +201,18 @@ for diseases and also has a higher crime rate.
 
 The mapping of community areas by infant mortality rate reveals that the
 community areas with the highest infant mortality rates are in the south
+and west sides of Chicago, with areas of low infant mortality
+interspersed. Another mapping of the per capita income variable displays
+that the lowest average incomes in community areas roughly line up with
+the highest infant mortality rates. Of course this isn’t terribly
+surprising since unfortunately those lower income Chicagoans likely have
+less access to healthcare in general. The highest per capita incomes are
+people living downtown, where infant mortality falls in the second
+lowest quartile range of infant mortality. The mapping of our
+unemployment rate indicator shows the highest unemployment rates in the
+center of the map, in an area we haven’t discussed yet. Areas with
+higher infant mortality rates have above average rates of unemployment
+as well, but don’t appear to affect it in a perfectly graphed way.
 
 > **Note**: *This was originally an interactive map (viewable in HTML only). Static image shown below.*
 
@@ -229,18 +241,7 @@ community areas with the highest infant mortality rates are in the south
 > **Note**: *This was originally an interactive map (viewable in HTML only). Static image shown below.*
 
 ![Interactive Map 7](interactive_map_7.png)
-and west sides of Chicago, with areas of low infant mortality
-interspersed. Another mapping of the per capita income variable displays
-that the lowest average incomes in community areas roughly line up with
-the highest infant mortality rates. Of course this isn’t terribly
-surprising since unfortunately those lower income Chicagoans likely have
-less access to healthcare in general. The highest per capita incomes are
-people living downtown, where infant mortality falls in the second
-lowest quartile range of infant mortality. The mapping of our
-unemployment rate indicator shows the highest unemployment rates in the
-center of the map, in an area we haven’t discussed yet. Areas with
-higher infant mortality rates have above average rates of unemployment
-as well, but don’t appear to affect it in a perfectly graphed way.
+
 ![](README_GitHubReady_FINAL_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
 
 > **Note**: *This was originally an interactive map (viewable in HTML
