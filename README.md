@@ -294,7 +294,7 @@ we used `accuracy` to compare the predicted values to the actual values
 in the test data to assess model performance. It resulted in an MAPE
 value of 25.8%.
 
-![](README_GitHubReady_FINAL_files/figure-gfm/unnamed-chunk-37-1.png)<!-- -->
+![](figure-gfm/unnamed-chunk-37-1.png)
 
 ## Neural Network
 
