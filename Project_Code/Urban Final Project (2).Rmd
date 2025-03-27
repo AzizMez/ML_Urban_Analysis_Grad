@@ -1,0 +1,711 @@
+---
+title: "Chicago Child Care and Public Health Analysis"
+author:
+- Dana Kilbourne
+- Ruthie Montella
+- Aziz Al Mezraani
+date: "Spring 2025"
+output:
+  html_document:
+    code_folding: show
+    highlight: haddock
+    number_sections: yes
+    theme: lumen
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+urlcolor: blue
+editor_options:
+  chunk_output_type: inline
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, results = "hide", fig.width=8, fig.height=4)
+options(scipen = 0, digits = 3)  # controls base R output
+if(!require('pacman')) {install.packages('pacman')}
+pacman::p_load(tidyverse, ggplot, sf, mapview)
+
+#tinytex::install_tinytex()
+# tinytex::install_tinytex()
+
+```
+
+\pagebreak
+
+# Overview and Goal of Study
+
+The primary objective of our project is to explore the potential correlation between health indicators in Chicago and socioeconomic background factors. By analyzing this relationship, we aim to uncover insights that could inform policies and initiatives designed to address health disparities in underserved communities. Ultimately, our goal is to provide valuable data-driven recommendations that will help policymakers and community leaders allocate resources more effectively and create targeted interventions where they are most needed.
+
+# Data Description
+
+We used two data sets from two different sources: Chicago Health Atlas (https://chicagohealthatlas.org/), Illinois Action for Children (https://www.actforchildren.org/about/research-data/data/). The first dataset from the Chicago Health Atlas includes a wide range of health-related variables categorized into four general areas: natality, mortality, lead exposure, infectious diseases, and economic factors. This dataset provides detailed insights into the health conditions and challenges faced by different communities within Chicago. The second dataset from Illinois Action for Children, which contains census data on the number of children across different age ranges, the availability of full-time licensed child care centers, and the number of additional childcare slots available in each community area. These datasets give us the tools for a comprehensive analysis of the relationship between health outcomes and socioeconomic factors, with a particular focus on the impact of access to childcare and broader community health indicators. 
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.height = 6,
+	fig.width = 8,
+	message = FALSE,
+	warning = FALSE
+)
+options(scipen = 0, digits = 3)  # controls base R output
+if(!require('pacman')) {
+  install.packages('pacman')
+}
+pacman::p_load(
+  ggplot2, dplyr, tidyverse, data.table, lubridate, ggpubr, skimr, scales, plotly,
+  sf, ggmap, mapview, leaflet, leafsync # for spatial objects and maps
+) 
+pacman::p_load(rayshader, starts, MetBrewer)
+```
+
+```{r, echo=FALSE}
+library(readxl)
+
+chicago_public <- read.csv("C://Users/azizm/Downloads/Public_Health_Statistics_-_Selected_public_health_indicators_by_Chicago_community_area_-_Historical_20250204.csv")
+
+child_care <- read_excel("C://Users/azizm/Downloads/Child-Care-Data-by-Chicago-Community-Area-June-2023.xlsx")
+
+
+```
+# Introduction
+
+This project aims to explore and analyze the relationship between socioeconomic factors, mortality factors, and infant mortality rates in the community areas of Chicago, IL. By investigating public health data obtained from the Chicago Health Atlas and Act for Children, the goal is to identify which factors most significantly contribute to infant mortality rate in the community areas of Chicago. We want to understand the underlying causes that could contribute to the disparities in infant mortality rate according to community area.
+
+# Objectives 
+
+* Identify key socioeconomic factors: We want to investigate which variables such as: per capita income, percent of the population in crowded housing, percentage of the population without a high school diploma, teen birth rate, low birth weight, and more have an effect on the infant mortality rate. Does the community area in Chicago impact the infant mortality rate? How do these factors correlate with infant mortality rate in Chicago community areas? 
+* Identify key mortality factors: We want to investigate the health data that we have obtained containing factors such as: mortality rate from diabetes, breast cancer, colorectal cancer, firearms, lung cancer, cerebrovascular diseases, and more to see how these factors correlate with infant mortality rate. Does the health environment of the area impact infant mortality rate? 
+* Understand disparities between community areas: Some community areas may be more fortunate than others when it comes to both mortality and socioeconomic factors, and we aim to see if this privilege affects the population. 
+
+# Findings
+
+Our analysis reveals several important correlations that suggest a complex relationship between socioeconomic factors and infant mortality rates in Chicago. Specifically, variables such as unemployment rate, teen birth rate, and low birth weight exhibit strong positive correlations with infant mortality, implying that higher levels of these factors in certain communities are associated with higher infant mortality rates. Additionally, factors like per capita income and education levels show moderate to weak correlations with infant mortality, further highlighting the importance of addressing poverty and education to improve health outcomes. The mapping of these variables across different community areas further revealed that areas with lower income and higher unemployment also tend to have higher rates of infant mortality, underscoring the compounded effects of socioeconomic disadvantage.
+
+# Exploratory Data Analysis (EDA)
+
+## Data Preparation
+
+Our first steps in examining our data sources was to become familiar with all variables via the source’s data dictionaries, ensure appropriate data types for each variable, and check summary statistics for missing values. We noticed right away that when we combined the two datasets the row representing the Montclare community area had NAs for almost all of its values. Initially we hypothesized that maybe this community area was not present in both datasets, but once we double checked and found it in both sources we took a closer look. We then realized there was a spelling error in the Illinois Action for Children dataset which was preventing the data from being merged correctly for this community area. After fixing this error by renaming the community area appropriately we were able to resolve this issue. 
+
+```{r, echo=FALSE}
+
+
+chicago_public[18,"Community.Area.Name"] <- "Montclare"
+
+
+joined_data <- left_join(chicago_public, child_care, by = c("Community.Area.Name" = "Community Area"))
+
+head(joined_data)
+
+colnames(joined_data)
+
+str(joined_data)
+
+summary(joined_data)
+
+copy <- joined_data
+
+copy$Gonorrhea.in.Males <- as.numeric(copy$Gonorrhea.in.Males)
+
+
+#install.packages("missForest")
+library(missForest)
+
+
+set.seed(1234)
+
+imputed_data <- missForest(copy[,-c(1,2)])
+is.na(imputed_data)
+
+summary(imputed_data$ximp)
+
+imp_final <- imputed_data$ximp
+
+imp_final$Community.Area.Name <- copy$Community.Area.Name
+
+imp_final$Community.Area.Number <- copy$Community.Area
+```
+
+
+
+
+
+
+
+## Investigating Socioeconomic Factors
+
+```{r, echo=FALSE}
+table <- imp_final %>%
+  summarise(
+    mean = mean(Infant.Mortality.Rate, na.rm = TRUE),
+    sd = sd(Infant.Mortality.Rate, na.rm = TRUE),
+    max = max(Infant.Mortality.Rate, na.rm = TRUE),
+    min = min(Infant.Mortality.Rate, na.rm = TRUE),
+    "0%" = quantile(Infant.Mortality.Rate, 0, na.rm = TRUE),
+    "25%" = quantile(Infant.Mortality.Rate, 0.25, na.rm = TRUE),
+    "50%" = quantile(Infant.Mortality.Rate, 0.5, na.rm = TRUE),
+    "75%" = quantile(Infant.Mortality.Rate, 0.75, na.rm = TRUE),
+    "100%" = quantile(Infant.Mortality.Rate, 1, na.rm = TRUE)
+  )
+```
+
+To explore the data relating to socioeconomic factors, we did a quick look into the summary statistics for infant mortality rate to identify differences by Chicago community area. We found a minimum of 1.5 deaths per 1,000 live births and a maximum of 22.6 per 1,000 live births. This difference is definitely significant and drove our curiosity to continue exploring this variable. 
+```{r, echo=FALSE}
+# create a histogram of the infant mortality rate
+ggplot(imp_final, aes(x = Infant.Mortality.Rate)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Distribution of Infant Mortality Rate",
+       x = "Infant Mortality Rate",
+       y = "Count") +
+  theme_minimal()
+```
+
+Next we decided to examine the strength of correlations between certain variables. The correlation between having no high school diploma and infant mortality rate is a weak, positive correlation of 0.102. The correlation between per capita income and infant mortality rate of -0.439 reveals a moderate negative relationship- meaning as per capita income increases, the infant mortality rate tends to decrease. Some of the higher correlations were found to be between infant mortality rate and unemployment (0.789), infant mortality rate and low birth weight (0.678), and infant mortality rate and teen birth rate correlation (0.627). These correlations preliminarily suggest that infant mortality rate is more dependent on these factors meaning that infant mortality is significantly higher in community areas where unemployment rate, the teen birth rate, and the per capita income all tend to be higher. 
+
+
+```{r, echo=FALSE}
+
+socioeconomic_factors <- imp_final %>%
+  select(Community.Area.Name, Community.Area.Number, Infant.Mortality.Rate, Low.Birth.Weight, Teen.Birth.Rate, No.High.School.Diploma, Below.Poverty.Level, Crowded.Housing, Per.Capita.Income, Unemployment)
+
+summary(socioeconomic_factors)
+
+infant_mortality_groups <- socioeconomic_factors %>%
+  mutate(quartile_group = cut(Infant.Mortality.Rate, 
+                              breaks = quantile(Infant.Mortality.Rate, probs = c(0, 0.25, 0.5, 0.75, 1)), 
+                              include.lowest = TRUE, 
+                              labels = c("Q1", "Q2", "Q3", "Q4"))) %>%
+  group_by(quartile_group) %>%
+  summarise(
+    avg_low_birth_weight = mean(Low.Birth.Weight, na.rm = TRUE),
+    avg_teen_birth_rate = mean(Teen.Birth.Rate, na.rm = TRUE),
+    avg_no_high_school_diploma = mean(No.High.School.Diploma, na.rm = TRUE),
+    avg_below_poverty_level = mean(Below.Poverty.Level, na.rm = TRUE),
+    avg_crowded_housing = mean(Crowded.Housing, na.rm = TRUE),
+    avg_per_capita_income = mean(Per.Capita.Income, na.rm = TRUE),
+    avg_unemployment = mean(Unemployment, na.rm = TRUE)
+  )
+
+infant_mortality_groups
+
+# create a scatter plot showing the correlation between infant mortality rate and low birth weight
+
+ggplot(socioeconomic_factors, aes(x = Infant.Mortality.Rate, y = Low.Birth.Weight)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Correlation between Infant Mortality Rate and Low Birth Weight",
+       x = "Infant Mortality Rate",
+       y = "Low Birth Weight") +
+  theme_minimal()
+
+cor(socioeconomic_factors$Infant.Mortality.Rate, socioeconomic_factors$Low.Birth.Weight)
+
+# create a scatter plot showing the correlation between infant mortality rate and high school diploma
+ggplot(socioeconomic_factors, aes(x = Infant.Mortality.Rate, y = No.High.School.Diploma)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Correlation between Infant Mortality Rate and No High School Diploma",
+       x = "Infant Mortality Rate",
+       y = "No High School Diploma") +
+  theme_minimal()
+
+cor(socioeconomic_factors$Infant.Mortality.Rate, socioeconomic_factors$No.High.School.Diploma)
+
+cor(socioeconomic_factors$Infant.Mortality.Rate, socioeconomic_factors$Per.Capita.Income)
+
+cor(socioeconomic_factors$Infant.Mortality.Rate, socioeconomic_factors$Unemployment)
+
+cor(socioeconomic_factors$Infant.Mortality.Rate, socioeconomic_factors$Teen.Birth.Rate)
+
+```
+
+Our next consideration was to identify the most common causes of mortality in each community area to identify which are the most prevalent. We began by using which.max() to individually check for certain community areas but then realized it would be much more effective to formulate code that would compare all percentages across each row and identify the highest one. Once we did this we just added a new column to our data frame, `Highest_Mortaility_Cause`, so we could more easily pull this number. This new calculation revealed that the most common cause for mortality among the Chicago community areas is diabetes related. This was not terribly surprising since “diabetes related” could encompass many things and diabetes is already a common disease. 
+
+
+We next grouped infant mortality rates into quartiles to assess the correlations in a table. Some socioeconomic factors, like crowded housing and not having a high school diploma do not correlate as perfectly as others do in these quartile ranges. Percent of people below the poverty level, per capita income, unemployment, and teen birth rate line up perfectly with the quartiles of infant mortality rates.
+
+
+
+
+## Investigating Mortality Factors
+```{r, echo=FALSE}
+
+mortality_factors <- imp_final %>%
+  select(Community.Area.Name, Community.Area.Number, Infant.Mortality.Rate, Assault..Homicide., Breast.cancer.in.females, Cancer..All.Sites., Colorectal.Cancer, Diabetes.related, Firearm.related, Lung.Cancer, Prostate.Cancer.in.Males, Stroke..Cerebrovascular.Disease.)
+
+mortality_factors$Community.Area.Name[which.max(mortality_factors$Assault..Homicide.)]
+max(mortality_factors$Assault..Homicide.)
+
+mortality_factors$Community.Area.Name[which.max(mortality_factors$Breast.cancer)]
+max(mortality_factors$Breast.cancer)
+
+mortality_factors$Community.Area.Name[which.max(mortality_factors$Cancer..All.Sites.)]
+max(mortality_factors$Cancer..All.Sites.)
+
+
+
+```
+
+There are many mortality factors in the dataset: deaths from assault or homicide, breast cancer in females, colorectal cancer, diabetes related deaths, firearm related deaths, lung cancer, prostate cancer in males, cerebrovascular diseases, and infant mortality. We wanted to examine which of these related to the highest death rate. We excluded both the `all types of cancer` and `diabetes related` columns since all cancer types are still included more granularly within the specific types of cancer, and our diabetes variable was an extreme outlier due to its diagnosis frequency. Out of the 77 total community areas, lung cancer has the highest mortality rate in 49 areas, stroke or cerebrovascular disease is most prevalent in 22, and prostate cancer in males is highest in 6.
+
+```{r, echo=FALSE}
+# we are seeing what is the highest cause of mortality for each community
+columns_to_compare <- c("Assault..Homicide.", "Breast.cancer.in.females", "Colorectal.Cancer", "Diabetes.related", "Firearm.related", "Lung.Cancer", "Prostate.Cancer.in.Males", "Stroke..Cerebrovascular.Disease.", "Infant.Mortality.Rate")
+
+mortality_factors %>% mutate(highest_mortality = names(.)[apply(select(.,all_of(columns_to_compare)),1,function(x) which.max(x))])
+
+
+cols_to_compare <- mortality_factors[,  c("Community.Area.Name", "Assault..Homicide.", "Breast.cancer.in.females", "Colorectal.Cancer", "Diabetes.related", "Firearm.related", "Lung.Cancer", "Prostate.Cancer.in.Males", "Stroke..Cerebrovascular.Disease.", "Infant.Mortality.Rate")]
+
+cols_to_compare$Highest_Mortality_Cause <- colnames(cols_to_compare)[apply(cols_to_compare[,-1], 1, which.max)+1]
+
+cols_to_compare$Highest_Mortality_Cause # diabetes is the highest cause of mortality in most areas because it is more common
+table(cols_to_compare$Highest_Mortality_Cause)
+
+new_cols <- mortality_factors[,  c("Community.Area.Name", "Assault..Homicide.", "Breast.cancer.in.females", "Colorectal.Cancer",  "Firearm.related", "Lung.Cancer", "Prostate.Cancer.in.Males", "Stroke..Cerebrovascular.Disease.", "Infant.Mortality.Rate")]
+
+new_cols$Highest_Mortality_Cause <- colnames(new_cols)[apply(new_cols[,-1], 1, which.max)+1]
+
+#new_cols$Highest_Mortality_Cause
+
+table(new_cols$Highest_Mortality_Cause)
+```
+
+There is seemingly a high correlation between mortality from diabetes related causes and infant mortality rate in Chicago community areas. Is this because the healthcare where people are dying from diseases like diabetes and infant mortality is not as good as other community areas? What is the correlation between infant mortality and other fatal markers?
+
+ The correlation between infant mortality rate and assault or homicide related deaths, breast cancer in females, colorectal cancer, firearm related, and lung cancer are all relatively high correlations. These high correlations could also be caused by other socioeconomic factors. For example, a place with a struggling population in terms of per capita income probably does not have the capacity to afford proper treatment for diseases and also has a higher crime rate.
+
+
+```{r, echo=FALSE}
+# How do mortality factors affect health outcomes of children in Chicago?
+
+
+# create a scatter plot showing the correlation between infant mortality rate and mortality due to diabetes related causes
+ggplot(mortality_factors, aes(x = Infant.Mortality.Rate, y = Diabetes.related)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Correlation between Infant Mortality Rate and Diabetes Related Causes",
+       x = "Infant Mortality Rate",
+       y = "Diabetes Related Causes") +
+  theme_minimal()
+
+cor(mortality_factors$Infant.Mortality.Rate, mortality_factors$Diabetes.related)
+
+cor(mortality_factors$Infant.Mortality.Rate, mortality_factors$Assault..Homicide.)
+
+cor(mortality_factors$Infant.Mortality.Rate, mortality_factors$Breast.cancer.in.fem)
+
+cor(mortality_factors$Infant.Mortality.Rate, mortality_factors$Colorectal.Cancer)
+
+cor(mortality_factors$Infant.Mortality.Rate, mortality_factors$Firearm.related)
+
+cor(mortality_factors$Infant.Mortality.Rate, mortality_factors$Lung.Cancer)
+```
+
+
+
+```{r, echo=FALSE}
+#create quartiles for the socioeconomic factors dataset - need to include this for mapping purposes
+socioeconomic_factors <- socioeconomic_factors %>%
+  mutate(quartile_group = cut(Infant.Mortality.Rate, 
+                              breaks = quantile(Infant.Mortality.Rate, probs = c(0, 0.25, 0.5, 0.75, 1)), 
+                              include.lowest = TRUE, 
+                              labels = c("Q1", "Q2", "Q3", "Q4")))
+
+
+socioeconomic_factors <- socioeconomic_factors %>%
+  mutate(low_birth_quartiles = cut(Low.Birth.Weight, 
+                              breaks = quantile(Low.Birth.Weight, probs = c(0, 0.25, 0.5, 0.75, 1)), 
+                              include.lowest = TRUE, 
+                              labels = c("Q1", "Q2", "Q3", "Q4")))
+```
+
+
+## Mapping
+
+The mapping of community areas by infant mortality rate reveals that the community areas with the highest infant mortality rates are in the south and west sides of Chicago, with areas of low infant mortality interspersed. Another mapping of the per capita income variable displays that the lowest average incomes in community areas roughly line up with the highest infant mortality rates. Of course this isn’t terribly surprising since unfortunately those lower income Chicagoans likely have less access to healthcare in general. The highest per capita incomes are people living downtown, where infant mortality falls in the second lowest quartile range of infant mortality. The mapping of our unemployment rate indicator shows the highest unemployment rates in the center of the map, in an area we haven’t discussed yet. Areas with higher infant mortality rates have above average rates of unemployment as well, but don’t appear to affect it in a perfectly graphed way.
+```{r, echo=FALSE}
+# create a map using community area names
+tract <- st_read("C://Users/azizm/Downloads/data_export/Chicago_CensusTracts2010/CensusTractsTIGER2010.shp") %>% st_transform(crs = 4326)
+
+mapview(tract, zcol = "COMMAREA")
+#Check module x for the tidycensus package - can download a lot of census data using an api
+
+```
+
+```{r, echo=FALSE}
+socioeconomic_factors$infant.mortality.rate.per1000.live.births <- socioeconomic_factors$Infant.Mortality.Rate
+
+## merge with the shapefile on census tract GEOID
+
+geo_chicago <- merge(socioeconomic_factors, tract, by.x="Community.Area.Number", by.y = "COMMAREA")
+## transform data.frame into sf object
+
+chicago <- st_as_sf(geo_chicago)
+## plot using mapview()
+
+InfantMortalityMap <- mapview(chicago, zcol = "infant.mortality.rate.per1000.live.births", legend = TRUE)
+
+
+```
+
+```{r, echo=FALSE}
+library(webshot)
+#save the map s a pdf
+mapshot(InfantMortalityMap, file = "infant_mortality_map.pdf")
+
+#install.packages("webshot")
+#webshot::install_phantomjs()
+
+```
+
+```{r, echo=FALSE}
+knitr::include_graphics("infant_mortality_map.pdf")
+
+```
+
+```{r, echo=FALSE}
+LowBirthWeightMap <- mapview(chicago, zcol = "Low.Birth.Weight", legend = TRUE)
+
+mapshot(LowBirthWeightMap, file = "low_birth_weight_map.pdf")
+
+```
+
+```{r, echo=FALSE}
+knitr::include_graphics("low_birth_weight_map.pdf")
+```
+
+```{r, echo=FALSE}
+
+
+QuartileMap <- mapview(chicago, zcol = "quartile_group", legend = TRUE)
+
+mapshot(QuartileMap, file = "quartile_map.pdf")
+
+```
+
+```{r, echo=FALSE}
+knitr::include_graphics("quartile_map.pdf")
+```
+
+
+```{r, echo=FALSE}
+# create a map using income
+PerCapitaIncome <- mapview(chicago, zcol = "Per.Capita.Income", legend = TRUE)
+
+mapshot(PerCapitaIncome, file = "per_capita_income_map.pdf")
+```
+
+```{r, echo=FALSE}
+knitr::include_graphics("per_capita_income_map.pdf")
+```
+
+```{r, echo=FALSE}
+# create a map using unemployment
+Unemployment <- mapview(chicago, zcol = "Unemployment", legend = TRUE)
+
+mapshot(Unemployment, file = "unemployment_map.pdf")
+```
+
+```{r,echo=FALSE}
+knitr::include_graphics("unemployment_map.pdf")
+```
+
+
+```{r, echo=FALSE}
+
+imp_final <-  imp_final %>%
+  mutate(teen_quartile_group = cut(Teen.Birth.Rate, 
+                              breaks = quantile(Teen.Birth.Rate, probs = c(0, 0.25, 0.5, 0.75, 1)), 
+                              include.lowest = TRUE, 
+                              labels = c("Q1", "Q2", "Q3", "Q4")))
+
+# create a map using preterm birth rate
+
+chicago_imp <- merge(imp_final, tract, by.x="Community.Area.Number", by.y = "COMMAREA")
+
+imp_geo_object <- st_as_sf(chicago_imp)
+
+TeenBirth <- mapview(imp_geo_object, zcol = "Teen.Birth.Rate", legend = TRUE)
+
+mapshot(TeenBirth, file = "teen_birth_rate_map.pdf")
+```
+
+```{r, echo=FALSE}
+knitr::include_graphics("teen_birth_rate_map.pdf")
+```
+
+
+```{r, echo=FALSE}
+
+#preterm birth rate quartiles
+TeenQuartile <- mapview(imp_geo_object, zcol = "teen_quartile_group", legend = TRUE)
+
+mapshot(TeenQuartile, file = "teen_quartile_map.pdf")
+```
+
+```{r, echo=FALSE}
+knitr::include_graphics("teen_quartile_map.pdf")
+```
+
+
+
+# Model Training
+
+
+```{r, echo=FALSE}
+set.seed(1234)
+
+train_index <- sample(1:nrow(imp_final), size = 0.7 * nrow(imp_final)) # do this before linear models
+train_data <- imp_final[train_index, ]
+test_data <- imp_final[-train_index, ]
+```
+
+
+## Linear Regression
+The first model we implemented was a linear regression model on all the socioeconomic factors. However, after running the model, we realized that only the only variables with significance were `teen birth rate` and `unemployment`. As a result we decided to use backward selection to reduce the input variables to see if we could get a model with higher significance. Using this method, we ended up with three significant variables: `unemployment`, `teen birth rate`, and `no high school diploma`. The reason for these three variables being significant could be related to the financial state/average income for the people in these areas. This factor may directly relate to financial challenges of maintaining proper nourishment and fostering a healthy pregnancy.  
+
+
+```{r, echo=FALSE}
+# create a linear regression model to predict infant mortality rate based on socioeconomic factors
+library(forecast)
+
+lm_model_socioeconomic <- lm(Infant.Mortality.Rate ~ Low.Birth.Weight + Teen.Birth.Rate + No.High.School.Diploma + Below.Poverty.Level + Crowded.Housing + Per.Capita.Income + Unemployment, data = train_data)
+
+#summary(lm_model_socioeconomic)
+
+socioeconomic_backward <- step(lm_model_socioeconomic, direction = "backward")
+
+summary(socioeconomic_backward)
+
+# socio_forecast <- forecast(lm_model_socioeconomic, newdata = test_data)
+
+# accuracy(socio_forecast, newdata = test_data)
+```
+
+We then did the same analysis but with mortality factors instead. For the full model, only `prostate cancer in males` showed weak significance. However, after backward selection, we ended with one variable significant at the 0.01 level: `assault homicide`, two variables significant at the 0.05 level: `cancer all sites` and `prostate cancer in males`, and one variable significant at the 0.1 level: `lung cancer. The significance of these variables might be explained by the stress brought on by having or caring for someone dealing with cancer, assault and/or homicide. These factors may lead to an unhealthy pregnancy, potentially jeopardizing the health of an unborn child. 
+
+```{r, echo=FALSE}
+# create a linear regression model to predict infant mortality rate based on mortality factors
+lm_model_mortality <- lm(Infant.Mortality.Rate ~ Assault..Homicide.+ Breast.cancer.in.females+ Cancer..All.Sites. + Colorectal.Cancer + Diabetes.related + Firearm.related + Lung.Cancer + Prostate.Cancer.in.Males + Stroke..Cerebrovascular.Disease., data = train_data)
+
+summary(lm_model_mortality)
+
+mortality_bwd <- step(lm_model_mortality, direction = "backward")
+
+summary(mortality_bwd)
+
+# mortality_forecast <- forecast(lm_model_mortality, newdata = test_data)
+# 
+# accuracy(mortality_forecast, newdata = test_data)
+```
+
+## LASSO Regression
+In order to run a lasso-based regression we first had to do some analysis to find the appropriate lambda value to use. In order to find this value we plotted the lambda values to find the coefficients associated with the lowest mean squared error value. This code extracted the coefficients at the optimal value of lambda (which minimizes cross-validation error). We made sure to do this in order to get the most reliable model coefficients. After determining which predictors (variables) are most important from the LASSO model, we were able to build a linear regression model (linear.lasso) using only these predictors: `teen birth rate`, `unemployment`, `assault homicide`, `breast cancer in females`, `cancer all sites`, `colorectal cancer`, `prostate cancer in males`. From this model we were then able to take a look at the summary results and then use `forecast` to make predictions using our test data. It applies the model to the test data and generates forecasts (predictions) for the `infant mortality rate` variable. Lastly we used `accuracy` to compare the predicted values to the actual values in the test data to assess model performance. It resulted in an MAPE value of 25.8%.
+
+```{r, echo=FALSE}
+
+library(glmnet)
+
+# LASSO  model 
+x <- model.matrix(Infant.Mortality.Rate ~ Low.Birth.Weight + Teen.Birth.Rate + No.High.School.Diploma + Below.Poverty.Level + Crowded.Housing + Per.Capita.Income + Unemployment + Assault..Homicide.+ Breast.cancer.in.females+ Cancer..All.Sites. + Colorectal.Cancer + Diabetes.related + Firearm.related + Lung.Cancer + Prostate.Cancer.in.Males + Stroke..Cerebrovascular.Disease., data = train_data)[,-1]
+
+y <- train_data[,13]
+
+ridge_model <- cv.glmnet(x,y, alpha = 1) #which lambda is the best 
+
+ridge_model$beta
+
+plot(ridge_model)
+
+library(coefplot)
+
+extract.coef(ridge_model, lambda =  "lambda.min") 
+
+#put these back into a linear model
+
+linear.lasso <- lm(Infant.Mortality.Rate ~ Teen.Birth.Rate + Unemployment + Assault..Homicide. + Breast.cancer.in.females + Cancer..All.Sites. + Colorectal.Cancer + Prostate.Cancer.in.Males, data = train_data)
+
+summary(linear.lasso)
+
+lasso_forecast <- forecast(linear.lasso, newdata = test_data)
+
+accuracy(lasso_forecast, newdata = test_data)
+```
+
+
+## Neural Network
+We also decided to attempt a Neural Network approach as we hoped its complexity may reveal patterns that simpler models may not. By using the normalized version of the significant variables from backward regression, we reduced the risk of the neural network becoming too complex and potentially overfitting the data. Since we have already reduced the number of variables through backward regression, we gave the neural network a more focused input, which can speed up training and potentially lead to better generalization. We decided to use two hidden layers that both have two nodes. We visualized our neural network and then evaluated the model's prediction once again by comparing predicted values to the actual ones. This model produced an MAPE of 94.6.
+
+```{r, echo=FALSE}
+
+library(neuralnet)
+library(forecast)
+
+# Normalize Data
+normalize <- function(x, min_x = min(x, na.rm = TRUE), max_x = max(x, na.rm = TRUE)) {
+  return((x - min_x) / (max_x - min_x))
+}
+
+train_data_scaled <- as.data.frame(lapply(train_data, function(col) {
+  if (is.numeric(col)) normalize(col) else col
+}))
+train_data_scaled <- na.omit(train_data_scaled)
+
+numeric_cols <- sapply(train_data, is.numeric)
+
+min_vals <- sapply(train_data[numeric_cols], min, na.rm = TRUE)
+max_vals <- sapply(train_data[numeric_cols], max, na.rm = TRUE)
+
+test_data_scaled <- as.data.frame(lapply(seq_along(test_data), function(i) {
+  col <- test_data[[i]]
+  if (numeric_cols[i]) {
+    normalize(col, min_vals[names(test_data)[i]], max_vals[names(test_data)[i]])
+  } else {
+    col
+  }
+}))
+colnames(test_data_scaled) <- colnames(test_data)
+
+# Train the neural network model
+neural_mod <- neuralnet(
+  Infant.Mortality.Rate ~ Teen.Birth.Rate + No.High.School.Diploma +
+  Unemployment + Assault..Homicide. + Cancer..All.Sites. +
+  Firearm.related + Prostate.Cancer.in.Males,
+  data = train_data_scaled,
+  hidden = c(2, 2)
+)
+
+plot(neural_mod)
+
+predictions <- as.numeric(compute(neural_mod, test_data_scaled)$net.result)
+
+predictions_scaled <- as.numeric(compute(neural_mod, test_data_scaled)$net.result)
+
+denormalize <- function(x, min_x, max_x) {
+  return(x * (max_x - min_x) + min_x)
+}
+
+predictions <- denormalize(predictions_scaled, min_vals["Infant.Mortality.Rate"], max_vals["Infant.Mortality.Rate"])
+
+
+# Evaluate accuracy
+actuals <- test_data$Infant.Mortality.Rate  
+#accuracy(predictions, actuals)
+
+
+nn_acc <- as.data.frame(accuracy(predictions, actuals))
+nn_acc$Model <- "Neural Network"
+
+lasso_acc <- as.data.frame(accuracy(lasso_forecast, actuals))
+lasso_acc <- lasso_acc["Test set", , drop = FALSE]
+lasso_acc$Model <- "Lasso Regression"
+
+
+acc_table <- bind_rows(lasso_acc, nn_acc)
+
+print(acc_table)
+```
+
+
+
+
+## Double Debiased Model
+Throughout our model building process, we realized the strong presence of the ‘assault and/or homicide’ factor and its significance in predicting infant mortality rate. Thus we decided to run a double debiased model in order to explore the causal effect of `assault and/or homicide` on `infant mortality rate`. The 2 models we ran were a linear regression and a random forest.
+
+The linear showed a strong statistical relationship between Assualt Homicide and Infanat Mortality Rate. However, the random forest model didn't show a significant statistical relationship. This difference hints that the relationship between the two is available but may not be purely linear. Rather, it is better as being one of many predictors rather than a sole predictor. This could be because it becomes significant after a certain threshold rather than at all levels. It could also just be based on what a high rate represents socioeconomically, which ultimately leads to a higher infant mortality rate.
+
+```{r, echo=FALSE}
+pacman::p_load(DoubleML, mlr3, mlr3learners, mlr3tuning, mlr3verse, data.table, ranger)
+
+set.seed(1234)
+
+colnames(imp_final) <- make.names(colnames(imp_final), unique = TRUE)
+
+imp_final$InfantMortalityRate <- imp_final$Infant.Mortality.Rate
+imp_final$AssaultHomicide <- imp_final$Assault..Homicide.
+imp_final$FullTimeLicensedCentersServingChildrenUnderFive <- imp_final$`Full.time.licensed.centers.serving.children.under.five`
+
+imp_final <- imp_final[, !colnames(imp_final) %in% c("Infant.Mortality.Rate", "Assault..Homicide.", "Full.time.licensed.centers.serving.children.under.five")]
+
+imp_final$Community.Area.Name <- as.factor(imp_final$Community.Area.Name)
+
+dummies <- model.matrix(~ Community.Area.Name - 1, data = imp_final)
+imp_final <- cbind(imp_final, dummies)
+
+imp_final$Community.Area.Name <- NULL
+
+colnames(imp_final) <- make.names(colnames(imp_final), unique = TRUE)
+
+dml_data <- DoubleMLData$new(
+  imp_final,
+  y_col = "InfantMortalityRate",
+  d_cols = "AssaultHomicide",
+  x_cols = setdiff(names(imp_final), c("InfantMortalityRate", "AssaultHomicide"))
+)
+
+# Model 1: Linear Regression (DoubleML)
+learner_lm <- lrn("regr.lm")
+ml_l <- learner_lm$clone()
+ml_m <- learner_lm$clone()
+
+obj_dml_plr <- DoubleMLPLR$new(dml_data, ml_l = ml_l, ml_m = ml_m)
+obj_dml_plr$fit()
+print(obj_dml_plr)
+
+# Model 2: Random Forest (DoubleML)
+learner_rf <- lrn("regr.ranger", num.trees = 500, max.depth = 5, min.node.size = 2)
+ml_l_rf <- learner_rf$clone()
+ml_m_rf <- learner_rf$clone()
+
+obj_dml_plr_rf <- DoubleMLPLR$new(dml_data, ml_l = ml_l_rf, ml_m = ml_m_rf)
+obj_dml_plr_rf$fit()
+print(obj_dml_plr_rf)
+```
+
+
+
+
+## Model Comparison
+As you can see above, across all metrics, the LASSO regression model outperforms the neural network. This could be because of the lack of tuning of the neural network, the overfitting that neural network is prone to, or the strength of the linear relationship between infant mortality and the variables selected by the LASSO model. Therefore, for prediction, the LASSO model would be more suitable.
+
+```{r accuracy_table, echo=FALSE, message=FALSE, warning=FALSE, results="asis"}
+library(knitr)
+library(kableExtra)
+
+acc_table <- as.data.frame(acc_table)
+
+kable(acc_table, format = "html", caption = "Model Accuracy Comparison") %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+# Conclusions
+The results from our analysis suggest that infant mortality rates in Chicago are deeply influenced by a combination of socioeconomic and health-related factors. The linear regression model revealed a significant relationship between teen birth rates, unemployment, and infant mortality, while our more complex models, such as the Lasso regression and Neural Network, provided additional insights into the predictive power of these variables. The Double Debiased Model specifically highlighted the strong causal effect of assault and homicide rates on infant mortality, showing that areas with higher crime rates tend to experience worse health outcomes for infants. However, the random forest model did not produce a significant relationship, indicating that the link between assault homicide and infant mortality may be non-linear and influenced by other socio-economic factors.
+
+
+The Neural Network model, with updated results, showed improved performance compared to earlier iterations. However, the high MAPE of 47.8% suggests that while the model has captured some complex relationships, it still struggles with accuracy and generalization across all community areas. This indicates that, despite the potential for capturing intricate patterns, Neural Networks may not always outperform simpler models in this context.
+The key takeaway from our findings is that policies addressing socioeconomic inequality—such as improving access to education, reducing unemployment, and providing better healthcare and social services—could significantly reduce disparities in infant mortality across Chicago's community areas. Targeted interventions that address both the immediate and underlying health and socioeconomic challenges faced by these communities will be crucial for improving public health outcomes. Further research and refined models, particularly those that consider non-linear relationships and causal effects, are needed to continue improving our understanding of the factors contributing to infant mortality.
+
+
+# Appendix {-}
+
+Put all supplementary materials in Appendix so that we do not lose focus in the main text but at the same time provide all relevant information for your reader/colleague/boss as well as **the future you** for reference!
+
+https://data.cityofchicago.org/api/assets/2107948F-357D-4ED7-ACC2-2E9266BBFFA2
+This is a link to further explanation and information regarding the Chicago Health Atlas data that we used. This first couple pages of the document contains a brief description of the dataset and details as to how the data was collected and reported. The third and fourth pages provide a breakdown of the many variables into four overarching categories: natality, mortality, lead, infectious, and economic. 
+
+
+https://data.cityofchicago.org/Health-Human-Services/Public-Health-Statistics-Selected-public-health-in/iqnk-2tcu/data_preview
+
+This link takes you to the direct page that we downloaded the Chicago Health Atlas data from. 
+
+
+https://www.actforchildren.org/about/research-data/data/
+
+This link will take you directly to the page we downloaded the Illinois Action for Children dataset from. We downloaded the Excel file under Cook County Childcare Data < By C`hicago Community Area and performed some preliminary cleaning specifically with the headers in Excel itself before importing it into R. 
+
+ 
