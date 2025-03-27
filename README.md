@@ -1,3 +1,13 @@
+## Repository Overview
+
+This repository is based on the Machine Learning for Urban Analysis course. It includes 2 homework files and a folder for everything necessary regarding the final project code. The final project (which is the rest of this README) is focused on public health and child care in Chicago.  
+
+- **`Project_Code/`** – Contains scripts, data, and outputs necessary to run the full public health and urban analysis project.
+- **`hw1_sp2025.html`** – Homework 1 focuses on exploratory data analysis and geospatial mapping of public health indicators in Chicago.
+- **`hw2_sp2025.html`** – Homework 2 is a case study modeling the spread of COVID-19 and assessing various public health interventions.
+
+The following is the final project:
+
 Chicago Child Care and Public Health Analysis
 ================
 Authors: Aziz Al Mezraani, Dana Kilbourne, and Ruthie Montella                                 
