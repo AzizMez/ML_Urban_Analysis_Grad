@@ -1,6 +1,6 @@
 Chicago Child Care and Public Health Analysis
 ================
-Authors: Aziz Al Mezraani, Dana Kilbourne, and Ruthie Montella
+Authors: Aziz Al Mezraani, Dana Kilbourne, and Ruthie Montella                                 
 Spring 2025
 
 - [Overview and Goal of Study](#overview-and-goal-of-study)
