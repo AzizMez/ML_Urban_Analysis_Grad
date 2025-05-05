@@ -21,6 +21,7 @@ editor_options:
 
 
 ```{r setup, include=FALSE}
+#markdown preperation
 knitr::opts_chunk$set(echo = FALSE, results = "hide", fig.width=8, fig.height=4)
 options(scipen = 0, digits = 3)  # controls base R output
 if(!require('pacman')) {install.packages('pacman')}
@@ -44,6 +45,7 @@ We used two data sets from two different sources: Chicago Health Atlas (https://
 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#for file preperation and package loading
 knitr::opts_chunk$set(
 	echo = TRUE,
 	fig.height = 6,
@@ -63,12 +65,14 @@ pacman::p_load(rayshader, starts, MetBrewer)
 ```
 
 ```{r, echo=FALSE}
+# Load library for reading Excel files
 library(readxl)
 
+# Load historical public health data for Chicago community areas
 chicago_public <- read.csv("C://Users/azizm/Downloads/Public_Health_Statistics_-_Selected_public_health_indicators_by_Chicago_community_area_-_Historical_20250204.csv")
 
+# Load child care service data across Chicago neighborhoods
 child_care <- read_excel("C://Users/azizm/Downloads/Child-Care-Data-by-Chicago-Community-Area-June-2023.xlsx")
-
 
 ```
 # Introduction
@@ -94,39 +98,44 @@ Our first steps in examining our data sources was to become familiar with all va
 ```{r, echo=FALSE}
 
 
-chicago_public[18,"Community.Area.Name"] <- "Montclare"
+# Correct a specific mislabeled community name to ensure join accuracy
+chicago_public[18, "Community.Area.Name"] <- "Montclare"
 
-
+# Merge public health and child care datasets by matching community names
+# This enriches the dataset with variables from both sources for joint analysis
 joined_data <- left_join(chicago_public, child_care, by = c("Community.Area.Name" = "Community Area"))
 
+# Preview the merged data
 head(joined_data)
-
 colnames(joined_data)
-
 str(joined_data)
-
 summary(joined_data)
 
+# Create a copy to prepare for imputation and transformations
 copy <- joined_data
 
+# Convert variable to numeric in preparation for imputation
 copy$Gonorrhea.in.Males <- as.numeric(copy$Gonorrhea.in.Males)
 
-
-#install.packages("missForest")
+# Load the missForest package for non-parametric imputation of missing values
+# It uses random forests to predict missing entries
 library(missForest)
 
-
+# Set seed for reproducibility
 set.seed(1234)
 
+# Perform imputation, excluding identifiers to avoid distortion
 imputed_data <- missForest(copy[,-c(1,2)])
+
+# Check for remaining missing values
 is.na(imputed_data)
 
+# Summarize imputed dataset
 summary(imputed_data$ximp)
 
+# Save the imputed dataset and reattach identifier columns
 imp_final <- imputed_data$ximp
-
 imp_final$Community.Area.Name <- copy$Community.Area.Name
-
 imp_final$Community.Area.Number <- copy$Community.Area
 ```
 
@@ -140,6 +149,7 @@ imp_final$Community.Area.Number <- copy$Community.Area
 
 ```{r, echo=FALSE}
 table <- imp_final %>%
+  # Summarize key metrics for Infant Mortality Rate to understand its distribution
   summarise(
     mean = mean(Infant.Mortality.Rate, na.rm = TRUE),
     sd = sd(Infant.Mortality.Rate, na.rm = TRUE),
@@ -155,7 +165,7 @@ table <- imp_final %>%
 
 To explore the data relating to socioeconomic factors, we did a quick look into the summary statistics for infant mortality rate to identify differences by Chicago community area. We found a minimum of 1.5 deaths per 1,000 live births and a maximum of 22.6 per 1,000 live births. This difference is definitely significant and drove our curiosity to continue exploring this variable. 
 ```{r, echo=FALSE}
-# create a histogram of the infant mortality rate
+# Plot with ggplot to visualize distribution of infant mortality rates with a histogram
 ggplot(imp_final, aes(x = Infant.Mortality.Rate)) +
   geom_histogram(binwidth = 1, fill = "blue", color = "black", alpha = 0.7) +
   labs(title = "Distribution of Infant Mortality Rate",
@@ -169,15 +179,19 @@ Next we decided to examine the strength of correlations between certain variable
 
 ```{r, echo=FALSE}
 
+# Select key socioeconomic and health indicators for analysis
 socioeconomic_factors <- imp_final %>%
-  select(Community.Area.Name, Community.Area.Number, Infant.Mortality.Rate, Low.Birth.Weight, Teen.Birth.Rate, No.High.School.Diploma, Below.Poverty.Level, Crowded.Housing, Per.Capita.Income, Unemployment)
+  select(Community.Area.Name, Community.Area.Number, Infant.Mortality.Rate, Low.Birth.Weight, Teen.Birth.Rate,
+         No.High.School.Diploma, Below.Poverty.Level, Crowded.Housing, Per.Capita.Income, Unemployment)
 
+# Review summary statistics to understand spread of indicators
 summary(socioeconomic_factors)
 
+# Create quartile groupings for infant mortality rates to allow grouped comparison
 infant_mortality_groups <- socioeconomic_factors %>%
-  mutate(quartile_group = cut(Infant.Mortality.Rate, 
-                              breaks = quantile(Infant.Mortality.Rate, probs = c(0, 0.25, 0.5, 0.75, 1)), 
-                              include.lowest = TRUE, 
+  mutate(quartile_group = cut(Infant.Mortality.Rate,
+                              breaks = quantile(Infant.Mortality.Rate, probs = c(0, 0.25, 0.5, 0.75, 1)),
+                              include.lowest = TRUE,
                               labels = c("Q1", "Q2", "Q3", "Q4"))) %>%
   group_by(quartile_group) %>%
   summarise(
@@ -190,10 +204,10 @@ infant_mortality_groups <- socioeconomic_factors %>%
     avg_unemployment = mean(Unemployment, na.rm = TRUE)
   )
 
+# Show summary table comparing socioeconomic averages across quartiles
 infant_mortality_groups
 
-# create a scatter plot showing the correlation between infant mortality rate and low birth weight
-
+# Visualize correlation between infant mortality and low birth weight
 ggplot(socioeconomic_factors, aes(x = Infant.Mortality.Rate, y = Low.Birth.Weight)) +
   geom_point() +
   geom_smooth(method = "lm", se = FALSE) +
@@ -202,9 +216,10 @@ ggplot(socioeconomic_factors, aes(x = Infant.Mortality.Rate, y = Low.Birth.Weigh
        y = "Low Birth Weight") +
   theme_minimal()
 
+# Calculate correlation coefficient
 cor(socioeconomic_factors$Infant.Mortality.Rate, socioeconomic_factors$Low.Birth.Weight)
 
-# create a scatter plot showing the correlation between infant mortality rate and high school diploma
+# Visualize correlation between infant mortality and lack of high school diploma
 ggplot(socioeconomic_factors, aes(x = Infant.Mortality.Rate, y = No.High.School.Diploma)) +
   geom_point() +
   geom_smooth(method = "lm", se = FALSE) +
@@ -213,13 +228,12 @@ ggplot(socioeconomic_factors, aes(x = Infant.Mortality.Rate, y = No.High.School.
        y = "No High School Diploma") +
   theme_minimal()
 
+# Explore additional correlations to inform socioeconomic influences
 cor(socioeconomic_factors$Infant.Mortality.Rate, socioeconomic_factors$No.High.School.Diploma)
-
 cor(socioeconomic_factors$Infant.Mortality.Rate, socioeconomic_factors$Per.Capita.Income)
-
 cor(socioeconomic_factors$Infant.Mortality.Rate, socioeconomic_factors$Unemployment)
-
 cor(socioeconomic_factors$Infant.Mortality.Rate, socioeconomic_factors$Teen.Birth.Rate)
+
 
 ```
 
@@ -234,15 +248,19 @@ We next grouped infant mortality rates into quartiles to assess the correlations
 ## Investigating Mortality Factors
 ```{r, echo=FALSE}
 
+# Select columns related to disease-specific causes of mortality
 mortality_factors <- imp_final %>%
-  select(Community.Area.Name, Community.Area.Number, Infant.Mortality.Rate, Assault..Homicide., Breast.cancer.in.females, Cancer..All.Sites., Colorectal.Cancer, Diabetes.related, Firearm.related, Lung.Cancer, Prostate.Cancer.in.Males, Stroke..Cerebrovascular.Disease.)
+  select(Community.Area.Name, Community.Area.Number, Infant.Mortality.Rate, Assault..Homicide., Breast.cancer.in.females,
+         Cancer..All.Sites., Colorectal.Cancer, Diabetes.related, Firearm.related, Lung.Cancer,
+         Prostate.Cancer.in.Males, Stroke..Cerebrovascular.Disease.)
 
+# Identify the community with the highest homicide-related mortality
 mortality_factors$Community.Area.Name[which.max(mortality_factors$Assault..Homicide.)]
 max(mortality_factors$Assault..Homicide.)
 
+# Identify communities with the highest breast cancer and total cancer mortality
 mortality_factors$Community.Area.Name[which.max(mortality_factors$Breast.cancer)]
 max(mortality_factors$Breast.cancer)
-
 mortality_factors$Community.Area.Name[which.max(mortality_factors$Cancer..All.Sites.)]
 max(mortality_factors$Cancer..All.Sites.)
 
@@ -253,25 +271,35 @@ max(mortality_factors$Cancer..All.Sites.)
 There are many mortality factors in the dataset: deaths from assault or homicide, breast cancer in females, colorectal cancer, diabetes related deaths, firearm related deaths, lung cancer, prostate cancer in males, cerebrovascular diseases, and infant mortality. We wanted to examine which of these related to the highest death rate. We excluded both the `all types of cancer` and `diabetes related` columns since all cancer types are still included more granularly within the specific types of cancer, and our diabetes variable was an extreme outlier due to its diagnosis frequency. Out of the 77 total community areas, lung cancer has the highest mortality rate in 49 areas, stroke or cerebrovascular disease is most prevalent in 22, and prostate cancer in males is highest in 6.
 
 ```{r, echo=FALSE}
-# we are seeing what is the highest cause of mortality for each community
-columns_to_compare <- c("Assault..Homicide.", "Breast.cancer.in.females", "Colorectal.Cancer", "Diabetes.related", "Firearm.related", "Lung.Cancer", "Prostate.Cancer.in.Males", "Stroke..Cerebrovascular.Disease.", "Infant.Mortality.Rate")
+# Identify the leading cause of death across various categories for each community
+columns_to_compare <- c("Assault..Homicide.", "Breast.cancer.in.females", "Colorectal.Cancer",
+                        "Diabetes.related", "Firearm.related", "Lung.Cancer",
+                        "Prostate.Cancer.in.Males", "Stroke..Cerebrovascular.Disease.",
+                        "Infant.Mortality.Rate")
 
-mortality_factors %>% mutate(highest_mortality = names(.)[apply(select(.,all_of(columns_to_compare)),1,function(x) which.max(x))])
+# Determine which cause has the highest rate in each row
+mortality_factors %>%
+  mutate(highest_mortality = names(.)[apply(select(., all_of(columns_to_compare)), 1, function(x) which.max(x))])
 
+# Build a new dataset to record the top cause per community
+cols_to_compare <- mortality_factors[, c("Community.Area.Name", columns_to_compare)]
+cols_to_compare$Highest_Mortality_Cause <- colnames(cols_to_compare)[apply(cols_to_compare[,-1], 1, which.max) + 1]
 
-cols_to_compare <- mortality_factors[,  c("Community.Area.Name", "Assault..Homicide.", "Breast.cancer.in.females", "Colorectal.Cancer", "Diabetes.related", "Firearm.related", "Lung.Cancer", "Prostate.Cancer.in.Males", "Stroke..Cerebrovascular.Disease.", "Infant.Mortality.Rate")]
+# View the determined leading cause of mortality per area
+cols_to_compare$Highest_Mortality_Cause
 
-cols_to_compare$Highest_Mortality_Cause <- colnames(cols_to_compare)[apply(cols_to_compare[,-1], 1, which.max)+1]
-
-cols_to_compare$Highest_Mortality_Cause # diabetes is the highest cause of mortality in most areas because it is more common
+# Tabulate how often each cause is the highest contributor
 table(cols_to_compare$Highest_Mortality_Cause)
 
-new_cols <- mortality_factors[,  c("Community.Area.Name", "Assault..Homicide.", "Breast.cancer.in.females", "Colorectal.Cancer",  "Firearm.related", "Lung.Cancer", "Prostate.Cancer.in.Males", "Stroke..Cerebrovascular.Disease.", "Infant.Mortality.Rate")]
+# Repeat analysis on a slightly reduced column set (perhaps for comparison or robustness check)
+new_cols <- mortality_factors[, c("Community.Area.Name", "Assault..Homicide.", "Breast.cancer.in.females",
+                                  "Colorectal.Cancer", "Firearm.related", "Lung.Cancer",
+                                  "Prostate.Cancer.in.Males", "Stroke..Cerebrovascular.Disease.",
+                                  "Infant.Mortality.Rate")]
 
-new_cols$Highest_Mortality_Cause <- colnames(new_cols)[apply(new_cols[,-1], 1, which.max)+1]
+new_cols$Highest_Mortality_Cause <- colnames(new_cols)[apply(new_cols[,-1], 1, which.max) + 1]
 
-#new_cols$Highest_Mortality_Cause
-
+# Frequency of leading causes in updated selection
 table(new_cols$Highest_Mortality_Cause)
 ```
 
@@ -283,8 +311,7 @@ There is seemingly a high correlation between mortality from diabetes related ca
 ```{r, echo=FALSE}
 # How do mortality factors affect health outcomes of children in Chicago?
 
-
-# create a scatter plot showing the correlation between infant mortality rate and mortality due to diabetes related causes
+# Create a scatter plot to assess the relationship between infant mortality and diabetes-related mortality
 ggplot(mortality_factors, aes(x = Infant.Mortality.Rate, y = Diabetes.related)) +
   geom_point() +
   geom_smooth(method = "lm", se = FALSE) +
@@ -293,35 +320,33 @@ ggplot(mortality_factors, aes(x = Infant.Mortality.Rate, y = Diabetes.related)) 
        y = "Diabetes Related Causes") +
   theme_minimal()
 
+# Quantify the strength of relationships between infant mortality and various disease outcomes
 cor(mortality_factors$Infant.Mortality.Rate, mortality_factors$Diabetes.related)
-
 cor(mortality_factors$Infant.Mortality.Rate, mortality_factors$Assault..Homicide.)
-
 cor(mortality_factors$Infant.Mortality.Rate, mortality_factors$Breast.cancer.in.fem)
-
 cor(mortality_factors$Infant.Mortality.Rate, mortality_factors$Colorectal.Cancer)
-
 cor(mortality_factors$Infant.Mortality.Rate, mortality_factors$Firearm.related)
-
 cor(mortality_factors$Infant.Mortality.Rate, mortality_factors$Lung.Cancer)
 ```
 
 
 
 ```{r, echo=FALSE}
-#create quartiles for the socioeconomic factors dataset - need to include this for mapping purposes
+# Create quartile groups for mapping purposes based on infant mortality and low birth weight
+
 socioeconomic_factors <- socioeconomic_factors %>%
+  # Bin infant mortality rates into quartiles for visualization
   mutate(quartile_group = cut(Infant.Mortality.Rate, 
                               breaks = quantile(Infant.Mortality.Rate, probs = c(0, 0.25, 0.5, 0.75, 1)), 
                               include.lowest = TRUE, 
                               labels = c("Q1", "Q2", "Q3", "Q4")))
 
-
 socioeconomic_factors <- socioeconomic_factors %>%
+  # Bin low birth weight rates into quartiles to prepare for spatial comparisons
   mutate(low_birth_quartiles = cut(Low.Birth.Weight, 
-                              breaks = quantile(Low.Birth.Weight, probs = c(0, 0.25, 0.5, 0.75, 1)), 
-                              include.lowest = TRUE, 
-                              labels = c("Q1", "Q2", "Q3", "Q4")))
+                                   breaks = quantile(Low.Birth.Weight, probs = c(0, 0.25, 0.5, 0.75, 1)), 
+                                   include.lowest = TRUE, 
+                                   labels = c("Q1", "Q2", "Q3", "Q4")))
 ```
 
 
@@ -330,24 +355,27 @@ socioeconomic_factors <- socioeconomic_factors %>%
 The mapping of community areas by infant mortality rate reveals that the community areas with the highest infant mortality rates are in the south and west sides of Chicago, with areas of low infant mortality interspersed. Another mapping of the per capita income variable displays that the lowest average incomes in community areas roughly line up with the highest infant mortality rates. Of course this isn’t terribly surprising since unfortunately those lower income Chicagoans likely have less access to healthcare in general. The highest per capita incomes are people living downtown, where infant mortality falls in the second lowest quartile range of infant mortality. The mapping of our unemployment rate indicator shows the highest unemployment rates in the center of the map, in an area we haven’t discussed yet. Areas with higher infant mortality rates have above average rates of unemployment as well, but don’t appear to affect it in a perfectly graphed way.
 ```{r, echo=FALSE}
 # create a map using community area names
-tract <- st_read("C://Users/azizm/Downloads/data_export/Chicago_CensusTracts2010/CensusTractsTIGER2010.shp") %>% st_transform(crs = 4326)
+# Load spatial boundaries for Chicago census tracts for mapping
+tract <- st_read("C://Users/azizm/Downloads/data_export/Chicago_CensusTracts2010/CensusTractsTIGER2010.shp") %>%
+  st_transform(crs = 4326)  # Transform projection to WGS 84 for web compatibility
 
+# Display the basic map using mapview
 mapview(tract, zcol = "COMMAREA")
 #Check module x for the tidycensus package - can download a lot of census data using an api
 
 ```
 
 ```{r, echo=FALSE}
+# Copy mortality rate into a new variable with mapping-friendly name
 socioeconomic_factors$infant.mortality.rate.per1000.live.births <- socioeconomic_factors$Infant.Mortality.Rate
 
-## merge with the shapefile on census tract GEOID
+# Merge health and socioeconomic data with census tract shapefile for spatial analysis
+geo_chicago <- merge(socioeconomic_factors, tract, by.x = "Community.Area.Number", by.y = "COMMAREA")
 
-geo_chicago <- merge(socioeconomic_factors, tract, by.x="Community.Area.Number", by.y = "COMMAREA")
-## transform data.frame into sf object
-
+# Convert the merged dataset into an 'sf' spatial object for mapping
 chicago <- st_as_sf(geo_chicago)
-## plot using mapview()
 
+# Plot infant mortality rates by geographic area using mapview
 InfantMortalityMap <- mapview(chicago, zcol = "infant.mortality.rate.per1000.live.births", legend = TRUE)
 
 
@@ -355,7 +383,7 @@ InfantMortalityMap <- mapview(chicago, zcol = "infant.mortality.rate.per1000.liv
 
 ```{r, echo=FALSE}
 library(webshot)
-#save the map s a pdf
+#Save the map as a pdf
 mapshot(InfantMortalityMap, file = "infant_mortality_map.pdf")
 
 #install.packages("webshot")
@@ -364,78 +392,92 @@ mapshot(InfantMortalityMap, file = "infant_mortality_map.pdf")
 ```
 
 ```{r, echo=FALSE}
+# Include the exported map PDF directly in the final report
 knitr::include_graphics("infant_mortality_map.pdf")
 
 ```
 
 ```{r, echo=FALSE}
+# Generate an interactive map to visualize low birth weight rates across Chicago
 LowBirthWeightMap <- mapview(chicago, zcol = "Low.Birth.Weight", legend = TRUE)
 
+# Save as PDF
 mapshot(LowBirthWeightMap, file = "low_birth_weight_map.pdf")
 
 ```
 
 ```{r, echo=FALSE}
+# Include the exported map PDF directly in the final report
 knitr::include_graphics("low_birth_weight_map.pdf")
 ```
 
 ```{r, echo=FALSE}
 
-
+# Create an interactive map showing infant mortality quartile groupings
 QuartileMap <- mapview(chicago, zcol = "quartile_group", legend = TRUE)
 
+# Save as PDF
 mapshot(QuartileMap, file = "quartile_map.pdf")
 
 ```
 
 ```{r, echo=FALSE}
+# Include the exported map PDF directly in the final report
 knitr::include_graphics("quartile_map.pdf")
 ```
 
 
 ```{r, echo=FALSE}
-# create a map using income
+# Create an interactive map to visualize per capita income by community
 PerCapitaIncome <- mapview(chicago, zcol = "Per.Capita.Income", legend = TRUE)
 
+# Save as PDF
 mapshot(PerCapitaIncome, file = "per_capita_income_map.pdf")
 ```
 
 ```{r, echo=FALSE}
+# Include the exported map PDF directly in the final report
 knitr::include_graphics("per_capita_income_map.pdf")
 ```
 
 ```{r, echo=FALSE}
-# create a map using unemployment
+# Create an interactive map showing unemployment rates across Chicago communities
 Unemployment <- mapview(chicago, zcol = "Unemployment", legend = TRUE)
 
+# Save as PDF
 mapshot(Unemployment, file = "unemployment_map.pdf")
 ```
 
 ```{r,echo=FALSE}
+# Include the exported map PDF directly in the final report
 knitr::include_graphics("unemployment_map.pdf")
 ```
 
 
 ```{r, echo=FALSE}
 
+# Add quartile groupings to Teen Birth Rate to prepare for grouped analysis
 imp_final <-  imp_final %>%
   mutate(teen_quartile_group = cut(Teen.Birth.Rate, 
                               breaks = quantile(Teen.Birth.Rate, probs = c(0, 0.25, 0.5, 0.75, 1)), 
                               include.lowest = TRUE, 
                               labels = c("Q1", "Q2", "Q3", "Q4")))
 
-# create a map using preterm birth rate
+# Merge imputed health data with spatial boundaries for mapping
+chicago_imp <- merge(imp_final, tract, by.x = "Community.Area.Number", by.y = "COMMAREA")
 
-chicago_imp <- merge(imp_final, tract, by.x="Community.Area.Number", by.y = "COMMAREA")
-
+# Convert to sf object for map rendering
 imp_geo_object <- st_as_sf(chicago_imp)
 
+# Create a map showing teen birth rate distribution
 TeenBirth <- mapview(imp_geo_object, zcol = "Teen.Birth.Rate", legend = TRUE)
 
+# Save as PDF
 mapshot(TeenBirth, file = "teen_birth_rate_map.pdf")
 ```
 
 ```{r, echo=FALSE}
+# Include the exported map PDF directly in the final report
 knitr::include_graphics("teen_birth_rate_map.pdf")
 ```
 
@@ -443,12 +485,15 @@ knitr::include_graphics("teen_birth_rate_map.pdf")
 ```{r, echo=FALSE}
 
 #preterm birth rate quartiles
+# Create an interactive map showing quartile groupings of teen birth rates
 TeenQuartile <- mapview(imp_geo_object, zcol = "teen_quartile_group", legend = TRUE)
 
+# Save as PDF
 mapshot(TeenQuartile, file = "teen_quartile_map.pdf")
 ```
 
 ```{r, echo=FALSE}
+# Include the exported map PDF directly in the final report
 knitr::include_graphics("teen_quartile_map.pdf")
 ```
 
@@ -458,9 +503,12 @@ knitr::include_graphics("teen_quartile_map.pdf")
 
 
 ```{r, echo=FALSE}
+# Set seed for reproducibility to ensure consistent train-test splits
 set.seed(1234)
 
-train_index <- sample(1:nrow(imp_final), size = 0.7 * nrow(imp_final)) # do this before linear models
+# Randomly split data into training (70%) and testing (30%) sets
+# This is done prior to building regression models
+train_index <- sample(1:nrow(imp_final), size = 0.7 * nrow(imp_final))
 train_data <- imp_final[train_index, ]
 test_data <- imp_final[-train_index, ]
 ```
@@ -471,36 +519,48 @@ The first model we implemented was a linear regression model on all the socioeco
 
 
 ```{r, echo=FALSE}
-# create a linear regression model to predict infant mortality rate based on socioeconomic factors
+# Build a linear regression model to predict infant mortality using socioeconomic factors
 library(forecast)
 
-lm_model_socioeconomic <- lm(Infant.Mortality.Rate ~ Low.Birth.Weight + Teen.Birth.Rate + No.High.School.Diploma + Below.Poverty.Level + Crowded.Housing + Per.Capita.Income + Unemployment, data = train_data)
+lm_model_socioeconomic <- lm(
+  Infant.Mortality.Rate ~ Low.Birth.Weight + Teen.Birth.Rate + No.High.School.Diploma +
+    Below.Poverty.Level + Crowded.Housing + Per.Capita.Income + Unemployment,
+  data = train_data
+)
 
-#summary(lm_model_socioeconomic)
-
+# Use backward stepwise selection to refine the model by removing insignificant predictors
 socioeconomic_backward <- step(lm_model_socioeconomic, direction = "backward")
 
+# Show summary of the optimized model
 summary(socioeconomic_backward)
 
-# socio_forecast <- forecast(lm_model_socioeconomic, newdata = test_data)
-
-# accuracy(socio_forecast, newdata = test_data)
+# (Optional) Forecast and accuracy code is included but commented out
+# socioeconomic_forecast <- forecast(lm_model_socioeconomic, newdata = test_data)
+# accuracy(socioeconomic_forecast, newdata = test_data)
 ```
 
 We then did the same analysis but with mortality factors instead. For the full model, only `prostate cancer in males` showed weak significance. However, after backward selection, we ended with one variable significant at the 0.01 level: `assault homicide`, two variables significant at the 0.05 level: `cancer all sites` and `prostate cancer in males`, and one variable significant at the 0.1 level: `lung cancer. The significance of these variables might be explained by the stress brought on by having or caring for someone dealing with cancer, assault and/or homicide. These factors may lead to an unhealthy pregnancy, potentially jeopardizing the health of an unborn child. 
 
 ```{r, echo=FALSE}
-# create a linear regression model to predict infant mortality rate based on mortality factors
-lm_model_mortality <- lm(Infant.Mortality.Rate ~ Assault..Homicide.+ Breast.cancer.in.females+ Cancer..All.Sites. + Colorectal.Cancer + Diabetes.related + Firearm.related + Lung.Cancer + Prostate.Cancer.in.Males + Stroke..Cerebrovascular.Disease., data = train_data)
+# Build a linear model using mortality-related variables to predict infant mortality
+lm_model_mortality <- lm(
+  Infant.Mortality.Rate ~ Assault..Homicide. + Breast.cancer.in.females + Cancer..All.Sites. +
+    Colorectal.Cancer + Diabetes.related + Firearm.related + Lung.Cancer +
+    Prostate.Cancer.in.Males + Stroke..Cerebrovascular.Disease.,
+  data = train_data
+)
 
+# Examine full model
 summary(lm_model_mortality)
 
+# Perform backward stepwise selection to improve model parsimony
 mortality_bwd <- step(lm_model_mortality, direction = "backward")
 
+# Display summary of the reduced model
 summary(mortality_bwd)
 
+# (Optional) Forecast and accuracy code is included but commented out
 # mortality_forecast <- forecast(lm_model_mortality, newdata = test_data)
-# 
 # accuracy(mortality_forecast, newdata = test_data)
 ```
 
@@ -509,31 +569,39 @@ In order to run a lasso-based regression we first had to do some analysis to fin
 
 ```{r, echo=FALSE}
 
+# Load glmnet package for Lasso regression
 library(glmnet)
 
-# LASSO  model 
-x <- model.matrix(Infant.Mortality.Rate ~ Low.Birth.Weight + Teen.Birth.Rate + No.High.School.Diploma + Below.Poverty.Level + Crowded.Housing + Per.Capita.Income + Unemployment + Assault..Homicide.+ Breast.cancer.in.females+ Cancer..All.Sites. + Colorectal.Cancer + Diabetes.related + Firearm.related + Lung.Cancer + Prostate.Cancer.in.Males + Stroke..Cerebrovascular.Disease., data = train_data)[,-1]
+# Prepare design matrix and response variable for Lasso
+x <- model.matrix(Infant.Mortality.Rate ~ Low.Birth.Weight + Teen.Birth.Rate + No.High.School.Diploma + 
+                  Below.Poverty.Level + Crowded.Housing + Per.Capita.Income + Unemployment + 
+                  Assault..Homicide. + Breast.cancer.in.females + Cancer..All.Sites. + Colorectal.Cancer + 
+                  Diabetes.related + Firearm.related + Lung.Cancer + Prostate.Cancer.in.Males + 
+                  Stroke..Cerebrovascular.Disease., data = train_data)[,-1]
 
-y <- train_data[,13]
+y <- train_data[,13]  # Extract response variable (Infant Mortality Rate)
 
-ridge_model <- cv.glmnet(x,y, alpha = 1) #which lambda is the best 
+# Fit Lasso model using cross-validation to find optimal penalty (lambda)
+ridge_model <- cv.glmnet(x, y, alpha = 1)
 
+# Display coefficients at best lambda
 ridge_model$beta
-
 plot(ridge_model)
 
+# Examine selected predictors and build a simplified linear model using them
 library(coefplot)
+extract.coef(ridge_model, lambda =  "lambda.min")
 
-extract.coef(ridge_model, lambda =  "lambda.min") 
+# Fit linear model using only the variables selected by Lasso
+linear.lasso <- lm(Infant.Mortality.Rate ~ Teen.Birth.Rate + Unemployment + Assault..Homicide. + 
+                   Breast.cancer.in.females + Cancer..All.Sites. + Colorectal.Cancer + 
+                   Prostate.Cancer.in.Males, data = train_data)
 
-#put these back into a linear model
-
-linear.lasso <- lm(Infant.Mortality.Rate ~ Teen.Birth.Rate + Unemployment + Assault..Homicide. + Breast.cancer.in.females + Cancer..All.Sites. + Colorectal.Cancer + Prostate.Cancer.in.Males, data = train_data)
-
+# Summary of the simplified Lasso-based linear model
 summary(linear.lasso)
 
+# Evaluate prediction performance on test data
 lasso_forecast <- forecast(linear.lasso, newdata = test_data)
-
 accuracy(lasso_forecast, newdata = test_data)
 ```
 
@@ -543,24 +611,27 @@ We also decided to attempt a Neural Network approach as we hoped its complexity 
 
 ```{r, echo=FALSE}
 
+# Load required packages
 library(neuralnet)
 library(forecast)
 
-# Normalize Data
+# Normalize function to scale numeric variables between 0 and 1
 normalize <- function(x, min_x = min(x, na.rm = TRUE), max_x = max(x, na.rm = TRUE)) {
   return((x - min_x) / (max_x - min_x))
 }
 
+# Normalize numeric columns in training set
 train_data_scaled <- as.data.frame(lapply(train_data, function(col) {
   if (is.numeric(col)) normalize(col) else col
 }))
 train_data_scaled <- na.omit(train_data_scaled)
 
+# Store min/max values for later denormalization of predictions
 numeric_cols <- sapply(train_data, is.numeric)
-
 min_vals <- sapply(train_data[numeric_cols], min, na.rm = TRUE)
 max_vals <- sapply(train_data[numeric_cols], max, na.rm = TRUE)
 
+# Normalize test data using training min/max
 test_data_scaled <- as.data.frame(lapply(seq_along(test_data), function(i) {
   col <- test_data[[i]]
   if (numeric_cols[i]) {
@@ -571,7 +642,7 @@ test_data_scaled <- as.data.frame(lapply(seq_along(test_data), function(i) {
 }))
 colnames(test_data_scaled) <- colnames(test_data)
 
-# Train the neural network model
+# Train neural network with two hidden layers (2 neurons each)
 neural_mod <- neuralnet(
   Infant.Mortality.Rate ~ Teen.Birth.Rate + No.High.School.Diploma +
   Unemployment + Assault..Homicide. + Cancer..All.Sites. +
@@ -579,25 +650,23 @@ neural_mod <- neuralnet(
   data = train_data_scaled,
   hidden = c(2, 2)
 )
-
 plot(neural_mod)
 
-predictions <- as.numeric(compute(neural_mod, test_data_scaled)$net.result)
-
+# Generate predictions
 predictions_scaled <- as.numeric(compute(neural_mod, test_data_scaled)$net.result)
 
+# Define a function to denormalize scaled predictions
 denormalize <- function(x, min_x, max_x) {
   return(x * (max_x - min_x) + min_x)
 }
 
+# Denormalize predictions back to original scale
 predictions <- denormalize(predictions_scaled, min_vals["Infant.Mortality.Rate"], max_vals["Infant.Mortality.Rate"])
 
+# Compare predictions to actual test outcomes
+actuals <- test_data$Infant.Mortality.Rate
 
-# Evaluate accuracy
-actuals <- test_data$Infant.Mortality.Rate  
-#accuracy(predictions, actuals)
-
-
+# Create accuracy tables for both models
 nn_acc <- as.data.frame(accuracy(predictions, actuals))
 nn_acc$Model <- "Neural Network"
 
@@ -605,9 +674,8 @@ lasso_acc <- as.data.frame(accuracy(lasso_forecast, actuals))
 lasso_acc <- lasso_acc["Test set", , drop = FALSE]
 lasso_acc$Model <- "Lasso Regression"
 
-
+# Combine model performance metrics
 acc_table <- bind_rows(lasso_acc, nn_acc)
-
 print(acc_table)
 ```
 
@@ -620,27 +688,31 @@ Throughout our model building process, we realized the strong presence of the �
 The linear showed a strong statistical relationship between Assualt Homicide and Infanat Mortality Rate. However, the random forest model didn't show a significant statistical relationship. This difference hints that the relationship between the two is available but may not be purely linear. Rather, it is better as being one of many predictors rather than a sole predictor. This could be because it becomes significant after a certain threshold rather than at all levels. It could also just be based on what a high rate represents socioeconomically, which ultimately leads to a higher infant mortality rate.
 
 ```{r, echo=FALSE}
+# Load DoubleML and associated machine learning libraries
 pacman::p_load(DoubleML, mlr3, mlr3learners, mlr3tuning, mlr3verse, data.table, ranger)
 
+# Ensure reproducibility
 set.seed(1234)
 
+# Prepare column names for compatibility with DoubleML (no spaces or special chars)
 colnames(imp_final) <- make.names(colnames(imp_final), unique = TRUE)
 
+# Rename columns for clarity and modeling purposes
 imp_final$InfantMortalityRate <- imp_final$Infant.Mortality.Rate
 imp_final$AssaultHomicide <- imp_final$Assault..Homicide.
 imp_final$FullTimeLicensedCentersServingChildrenUnderFive <- imp_final$`Full.time.licensed.centers.serving.children.under.five`
 
+# Drop original columns after renaming
 imp_final <- imp_final[, !colnames(imp_final) %in% c("Infant.Mortality.Rate", "Assault..Homicide.", "Full.time.licensed.centers.serving.children.under.five")]
 
+# Encode community area as dummy variables for modeling
 imp_final$Community.Area.Name <- as.factor(imp_final$Community.Area.Name)
-
 dummies <- model.matrix(~ Community.Area.Name - 1, data = imp_final)
 imp_final <- cbind(imp_final, dummies)
-
 imp_final$Community.Area.Name <- NULL
-
 colnames(imp_final) <- make.names(colnames(imp_final), unique = TRUE)
 
+# Prepare DoubleMLData object: Y = Infant Mortality, D = AssaultHomicide, X = all else
 dml_data <- DoubleMLData$new(
   imp_final,
   y_col = "InfantMortalityRate",
@@ -648,7 +720,7 @@ dml_data <- DoubleMLData$new(
   x_cols = setdiff(names(imp_final), c("InfantMortalityRate", "AssaultHomicide"))
 )
 
-# Model 1: Linear Regression (DoubleML)
+# Model 1: Linear Regression using DoubleML framework
 learner_lm <- lrn("regr.lm")
 ml_l <- learner_lm$clone()
 ml_m <- learner_lm$clone()
@@ -657,7 +729,7 @@ obj_dml_plr <- DoubleMLPLR$new(dml_data, ml_l = ml_l, ml_m = ml_m)
 obj_dml_plr$fit()
 print(obj_dml_plr)
 
-# Model 2: Random Forest (DoubleML)
+# Model 2: Random Forest using DoubleML
 learner_rf <- lrn("regr.ranger", num.trees = 500, max.depth = 5, min.node.size = 2)
 ml_l_rf <- learner_rf$clone()
 ml_m_rf <- learner_rf$clone()
@@ -674,11 +746,14 @@ print(obj_dml_plr_rf)
 As you can see above, across all metrics, the LASSO regression model outperforms the neural network. This could be because of the lack of tuning of the neural network, the overfitting that neural network is prone to, or the strength of the linear relationship between infant mortality and the variables selected by the LASSO model. Therefore, for prediction, the LASSO model would be more suitable.
 
 ```{r accuracy_table, echo=FALSE, message=FALSE, warning=FALSE, results="asis"}
+# Load libraries to create a polished HTML table for displaying model performance
 library(knitr)
 library(kableExtra)
 
+# Ensure the accuracy results are in data frame format
 acc_table <- as.data.frame(acc_table)
 
+# Render the model accuracy results as a styled HTML table
 kable(acc_table, format = "html", caption = "Model Accuracy Comparison") %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
 ```
